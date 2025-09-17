@@ -25,59 +25,12 @@
         color: var(--text);
         font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
         height: 100vh;
-        display: grid;
-        grid-template-rows: auto 1fr;
       }
 
-      header {
-        border-bottom: 1px solid var(--border);
-        background: var(--panel);
-        padding: 12px clamp(12px, 4vw, 24px);
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 12px;
-        align-items: center;
+      main { 
+        position: relative; 
+        height: 100vh;
       }
-
-      h1 {
-        margin: 0;
-        font-size: 16px;
-        font-weight: 600;
-        letter-spacing: 0.2px;
-      }
-
-      .controls {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 8px;
-        width: min(1100px, 100%);
-      }
-
-      input[type="url"] {
-        width: 100%;
-        padding: 10px 12px;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        background: var(--input);
-        color: var(--text);
-        outline: none;
-      }
-
-      input::placeholder { color: var(--muted); }
-
-      button {
-        padding: 10px 14px;
-        border: 1px solid color-mix(in oklab, var(--primary) 60%, var(--border));
-        border-radius: 10px;
-        background: var(--primary);
-        color: #fff;
-        font-weight: 600;
-        cursor: pointer;
-      }
-
-      button:disabled { opacity: 0.6; cursor: not-allowed; }
-
-      main { position: relative; }
 
       .frame {
         position: absolute;
@@ -102,58 +55,21 @@
 
       .error { color: var(--danger); }
 
-      .helper {
-        font-size: 12px;
-        color: var(--muted);
-        margin-top: 6px;
-      }
-
-      .row { display: contents; }
-
-      @media (max-width: 720px) {
-        header { grid-template-columns: 1fr; gap: 8px; }
-        .controls { grid-template-columns: 1fr; }
-      }
     </style>
   </head>
   <body>
-    <header>
-      <h1>Website-Viewer</h1>
-      <div class="row">
-        <div class="controls">
-          <input id="urlInput" type="url" placeholder="vercel.com" autocomplete="url" spellcheck="false" />
-          <button id="goBtn" type="button">Anzeigen</button>
-        </div>
-        <div class="helper">Tipp: Manche Seiten lassen sich aus Sicherheitsgründen nicht einbetten.</div>
-      </div>
-    </header>
     <main>
-      <iframe id="viewer" class="frame" title="Website Vorschau" sandbox="allow-forms allow-modals allow-popups allow-pointer-lock allow-scripts allow-same-origin allow-top-navigation-by-user-activation"></iframe>
+      <iframe id="viewer" class="frame" title="Website Vorschau"></iframe>
       <div id="notice" class="notice" hidden></div>
     </main>
 
     <script>
       (function () {
-        const input = document.getElementById('urlInput');
-        const button = document.getElementById('goBtn');
         const iframe = document.getElementById('viewer');
         const notice = document.getElementById('notice');
 
-        function normalizeUrl(raw) {
-          const trimmed = (raw || '').trim();
-          if (!trimmed) return '';
-          try {
-            const hasProtocol = /^(https?:)?\/\//i.test(trimmed);
-            const withScheme = hasProtocol ? trimmed : `https://${trimmed}`;
-            const url = new URL(withScheme);
-            if (!/^https?:$/i.test(url.protocol)) {
-              throw new Error('Nur http(s) wird unterstützt.');
-            }
-            return url.toString();
-          } catch (e) {
-            return '';
-          }
-        }
+        // ÄNDERE DIESE ZEILE: Hier deine feste URL eintragen
+        const FIXED_URL = 'https://35f690e3ac2b.ngrok-free.app';
 
         function setNotice(message, isError = false) {
           if (!message) {
@@ -167,69 +83,22 @@
           notice.classList.toggle('error', Boolean(isError));
         }
 
-        function show(url) {
-          const normalized = normalizeUrl(url);
-          if (!normalized) {
-            setNotice('Bitte eine gültige URL eingeben (http oder https).', true);
-            return;
-          }
-
+        function loadUrl(url) {
           setNotice('Lade…');
-          button.disabled = true;
-          try { iframe.src = 'about:blank'; } catch (_) {}
-
-          // Set the target URL. Some sites cannot be embedded due to X-Frame-Options/Content-Security-Policy.
-          // We show a helper message if loading takes too long.
-          let didLoad = false;
-          const timeoutId = setTimeout(() => {
-            if (!didLoad) {
-              setNotice('Falls nichts angezeigt wird: Die Website verbietet die Einbettung in einen Rahmen (X-Frame-Options / CSP). Öffne sie direkt in einem neuen Tab.');
-            }
-          }, 2500);
-
+          
           iframe.onload = function () {
-            didLoad = true;
-            clearTimeout(timeoutId);
             setNotice('');
-            button.disabled = false;
-            // Try to reflect the final URL back in the input if same-origin (won't work cross-origin)
-            try { input.value = iframe.contentWindow.location.href; } catch (_) {}
           };
 
           iframe.onerror = function () {
-            didLoad = true;
-            clearTimeout(timeoutId);
-            setNotice('Die Seite konnte nicht geladen werden. Prüfe die URL oder versuche es später erneut.', true);
-            button.disabled = false;
+            setNotice('Die Seite konnte nicht geladen werden. Möglicherweise blockiert die Website die Einbettung.', true);
           };
 
-          try {
-            iframe.src = normalized;
-            history.replaceState(null, '', `#${encodeURIComponent(normalized)}`);
-          } catch (e) {
-            setNotice('Ungültige URL.', true);
-            button.disabled = false;
-          }
+          iframe.src = url;
         }
 
-        function handleSubmit() { show(input.value); }
-
-        button.addEventListener('click', handleSubmit);
-        input.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            handleSubmit();
-          }
-        });
-
-        // Restore from hash if present
-        try {
-          const fromHash = decodeURIComponent((location.hash || '').slice(1));
-          if (fromHash) {
-            input.value = fromHash;
-            show(fromHash);
-          }
-        } catch (_) {}
+        // Automatisch die feste URL laden
+        loadUrl(FIXED_URL);
       })();
     </script>
   </body>
